@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduGenie</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="container">
+    <h1>🎓 EduGenie</h1>
+    <p class="subtitle">Google Gemini Powered Learning Assistant</p>
+
+    <form id="eduForm">
+      <label for="task">Choose a task</label>
+      <select id="task">
+        <option value="qa">Ask a Question</option>
+        <option value="explain">Explain a Topic</option>
+        <option value="quiz">Generate Quiz</option>
+        <option value="summarize">Summarize</option>
+        <option value="recommend">Learning Path</option>
+      </select>
+
+      <label for="text">Enter your question, topic, or passage</label>
+      <textarea id="text" rows="9" placeholder="Type here..."></textarea>
+
+      <button type="submit">Generate</button>
+    </form>
+
+    <section id="result" class="result">
+      <h2>Result</h2>
+      <pre id="output">Your result will appear here.</pre>
+    </section>
+  </main>
+
+<script>
+const form = document.getElementById("eduForm");
+const output = document.getElementById("output");
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  output.textContent = "Generating...";
+  const body = new URLSearchParams();
+  body.append("task", document.getElementById("task").value);
+  body.append("text", document.getElementById("text").value);
+
+  try {
+    const response = await fetch("/api/task", {method:"POST", body});
+    const data = await response.json();
+    output.textContent = JSON.stringify(data, null, 2);
+  } catch (err) {
+    output.textContent = "Error: " + err;
+  }
+});
+</script>
+</body>
+</html>

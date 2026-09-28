@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduGenie - Google Gemini Powered Learning Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <!-- Marked.js for rendering markdown responses smoothly -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+  <div class="page-container">
+
+    <!-- Top API Key Bar -->
+    <div class="api-bar" id="apiBar">
+      <div class="api-status">
+        <span class="status-indicator {% if api_key_configured %}status-active{% else %}status-warning{% endif %}" id="statusDot"></span>
+        <span id="statusText">{% if api_key_configured %}Gemini API Connected{% else %}Gemini API Key Required{% endif %}</span>
+      </div>
+      <div class="api-input-wrap">
+        <input type="password" id="apiKeyInput" placeholder="Enter Google Gemini API Key" autocomplete="off">
+        <button type="button" id="saveKeyBtn" onclick="saveApiKey()">Save Key</button>
+      </div>
+    </div>
+
+    <!-- Header -->
+    <header class="header">
+      <h1 class="main-title">Welcome to EduGenie <span>💡</span></h1>
+      <p class="subtitle">Your personal AI tutor for learning support!</p>
+    </header>
+
+    <!-- 1. Q&A Module -->
+    <section class="card-section">
+      <form id="qaForm" onsubmit="handleQA(event)">
+        <label for="question"><strong>Ask EduGenie a Question:</strong></label>
+        <div class="input-group">
+          <input type="text" id="question" placeholder="Why is the sky blue?" required>
+          <button type="submit" id="qaBtn">Get Answer</button>
+        </div>
+      </form>
+      <div id="qaResult" class="output hidden"></div>
+    </section>
+
+    <!-- 2. Explanation Module -->
+    <section class="card-section">
+      <form id="explainForm" onsubmit="handleExplain(event)">
+        <label for="topic"><strong>Need an Explanation?</strong></label>
+        <div class="input-group">
+          <input type="text" id="topic" placeholder="Photosynthesis" required>
+          <button type="submit" id="explainBtn">Explain</button>
+        </div>
+      </form>
+      <div id="explanationResult" class="output hidden"></div>
+    </section>
+
+    <!-- 3. Summary Module -->
+    <section class="card-section">
+      <form id="summaryForm" onsubmit="handleSummary(event)">
+        <label for="summaryText"><strong>Summarize a Paragraph:</strong></label>
+        <div class="input-group">
+          <input type="text" id="summaryText" placeholder="Paste long content to summarize" required>
+          <button type="submit" id="summaryBtn">Summarize</button>
+        </div>
+      </form>
+      <div id="summaryResult" class="output hidden"></div>
+    </section>
+
+    <!-- 4. Quiz Module -->
+    <section class="card-section">
+      <form id="quizForm" onsubmit="handleQuiz(event)">
+        <label for="quizText"><strong>Generate a Quiz:</strong></label>
+        <div class="input-group">
+          <input type="text" id="quizText" placeholder="Solar System" required>
+          <button type="submit" id="quizBtn">Generate Quiz</button>
+        </div>
+      </form>
+      <div id="quizResult" class="output hidden"></div>
+    </section>
+
+    <!-- 5. Learning Recommendations Module -->
+    <section class="card-section">
+      <form id="recommendForm" onsubmit="handleRecommend(event)">
+        <label for="recommendTopic"><strong>Get Learning Recommendations:</strong></label>
+        <div class="input-group">
+          <input type="text" id="recommendTopic" placeholder="eg. Linear Regression" required>
+          <button type="submit" id="recommendBtn">Get Recommendations</button>
+        </div>
+      </form>
+      <div id="recommendResult" class="output hidden"></div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>EduGenie &bull; Powered by Google Gemini &amp; FastAPI &bull; SmartInternz Project</p>
+    </footer>
+
+  </div>
+
+  <script>
+    // Save API key directly from UI
+    async function saveApiKey() {
+      const key = document.getElementById('apiKeyInput').value.trim();
+      if (!key) {
+        alert("Please enter a valid API key.");
+        return;
+      }
+      try {
+        const res = await fetch('/api/save-key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api_key: key })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          document.getElementById('statusDot').className = 'status-indicator status-active';
+          document.getElementById('statusText').innerText = 'Gemini API Connected';
+          document.getElementById('apiKeyInput').value = '';
+          alert("Gemini API Key saved successfully!");
+        } else {
+          alert("Error: " + (data.error || "Failed to save key"));
+        }
+      } catch (err) {
+        alert("Network error: " + err.message);
+      }
+    }
+
+    // Helper for loading animation
+    function setLoading(container, isVisible, customMessage = "EduGenie is thinking...") {
+      if (isVisible) {
+        container.classList.remove('hidden');
+        container.innerHTML = `
+          <div class="loading-box">
+            <div class="spinner"></div>
+            <span>${customMessage}</span>
+          </div>
+        `;
+      }
+    }
+
+    // 1. Q&A Handler
+    async function handleQA(e) {
+      e.preventDefault();
+      const question = document.getElementById('question').value.trim();
+      const resultBox = document.getElementById('qaResult');
+      if (!question) return;
+
+      setLoading(resultBox, true, "Finding the best answer for you...");
+      try {
+        const res = await fetch(`/qa?question=${encodeURIComponent(question)}`);
+        const data = await res.json();
+        resultBox.classList.remove('hidden');
+        if (data.answer) {
+          resultBox.innerHTML = `
+            <div class="result-header">Answer:</div>
+            <div class="result-body">${marked.parse(data.answer)}</div>
+          `;
+        } else {
+          resultBox.innerHTML = `<div class="error-msg">Error: ${data.error || 'Failed to fetch answer.'}</div>`;
+        }
+      } catch (err) {
+        resultBox.classList.remove('hidden');
+        resultBox.innerHTML = `<div class="error-msg">Connection error: ${err.message}</div>`;
+      }
+    }
+
+    // 2. Explanation Handler
+    async function handleExplain(e) {
+      e.preventDefault();
+      const topic = document.getElementById('topic').value.trim();
+      const resultBox = document.getElementById('explanationResult');
+      if (!topic) return;
+
+      setLoading(resultBox, true, `Explaining "${topic}" in simple terms...`);
+      try {
+        const res = await fetch('/explain', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic: topic })
+        });
+        const data = await res.json();
+        resultBox.classList.remove('hidden');
+        if (data.explanation) {
+          resultBox.innerHTML = `
+            <div class="result-header">Explanation:</div>
+            <div class="result-body">${marked.parse(data.explanation)}</div>
+          `;
+        } else {
+          resultBox.innerHTML = `<div class="error-msg">Error: ${data.error || 'Failed to generate explanation.'}</div>`;
+        }
+      } catch (err) {
+        resultBox.classList.remove('hidden');
+        resultBox.innerHTML = `<div class="error-msg">Connection error: ${err.message}</div>`;
+      }
+    }
+
+    // 3. Summary Handler
+    async function handleSummary(e) {
+      e.preventDefault();
+      const text = document.getElementById('summaryText').value.trim();
+      const resultBox = document.getElementById('summaryResult');
+      if (!text) return;
+
+      setLoading(resultBox, true, "Summarizing text...");
+      try {
+        const res = await fetch('/summarize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text })
+        });
+        const data = await res.json();
+        resultBox.classList.remove('hidden');
+        if (data.summary) {
+          resultBox.innerHTML = `
+            <div class="result-header">Summary:</div>
+            <div class="result-body">${marked.parse(data.summary)}</div>
+          `;
+        } else {
+          resultBox.innerHTML = `<div class="error-msg">Error: ${data.error || 'Failed to generate summary.'}</div>`;
+        }
+      } catch (err) {
+        resultBox.classList.remove('hidden');
+        resultBox.innerHTML = `<div class="error-msg">Connection error: ${err.message}</div>`;
+      }
+    }
+
+    // 4. Quiz Handler
+    async function handleQuiz(e) {
+      e.preventDefault();
+      const text = document.getElementById('quizText').value.trim();
+      const resultBox = document.getElementById('quizResult');
+      if (!text) return;
+
+      setLoading(resultBox, true, "Generating quiz questions...");
+      try {
+        const res = await fetch('/quiz', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text })
+        });
+        const data = await res.json();
+        resultBox.classList.remove('hidden');
+
+        if (Array.isArray(data.quiz) && data.quiz.length > 0) {
+          if (data.quiz[0].error) {
+            resultBox.innerHTML = `<div class="error-msg">${data.quiz[0].error}</div>`;
+            return;
+          }
+
+          let quizHtml = `
+            <div class="quiz-container">
+              <div class="result-header">Quiz:</div>
+          `;
+
+          data.quiz.forEach((q, qIndex) => {
+            const safeAnswer = (q.answer || '').replace(/"/g, '&quot;');
+            quizHtml += `
+              <div class="quiz-question-box" id="qBox_${qIndex}">
+                <div class="quiz-q-title"><strong>Q${qIndex + 1}: ${q.question}</strong></div>
+                <div class="quiz-options">
+                  ${(q.options || []).map((opt, optIndex) => `
+                    <label class="quiz-option-label" for="q_${qIndex}_opt_${optIndex}">
+                      <input type="radio" name="question_${qIndex}" id="q_${qIndex}_opt_${optIndex}" value="${opt.replace(/"/g, '&quot;')}">
+                      <span>${opt}</span>
+                    </label>
+                  `).join('')}
+                </div>
+                <div class="quiz-action-row">
+                  <button type="button" class="check-ans-btn" onclick="checkAnswer(${qIndex}, '${safeAnswer}')">Check Answer</button>
+                  <div class="quiz-feedback" id="feedback_${qIndex}"></div>
+                </div>
+              </div>
+            `;
+          });
+
+          quizHtml += `</div>`;
+          resultBox.innerHTML = quizHtml;
+        } else {
+          resultBox.innerHTML = `<div class="error-msg">Error: Could not parse quiz format.</div>`;
+        }
+      } catch (err) {
+        resultBox.classList.remove('hidden');
+        resultBox.innerHTML = `<div class="error-msg">Connection error: ${err.message}</div>`;
+      }
+    }
+
+    // Function to check quiz answer interactively
+    function checkAnswer(questionIndex, correctAnswer) {
+      const selected = document.querySelector(`input[name="question_${questionIndex}"]:checked`);
+      const feedbackDiv = document.getElementById(`feedback_${questionIndex}`);
+
+      if (!selected) {
+        feedbackDiv.className = 'quiz-feedback feedback-warning';
+        feedbackDiv.innerText = '⚠️ Please select an option first.';
+        return;
+      }
+
+      const userChoice = selected.value.trim();
+      const actualAnswer = correctAnswer.trim();
+
+      if (userChoice.toLowerCase() === actualAnswer.toLowerCase()) {
+        feedbackDiv.className = 'quiz-feedback feedback-correct';
+        feedbackDiv.innerText = '✅ Correct!';
+      } else {
+        feedbackDiv.className = 'quiz-feedback feedback-incorrect';
+        feedbackDiv.innerText = `❌ Incorrect. Correct answer: ${correctAnswer}`;
+      }
+    }
+
+    // 5. Recommendations Handler
+    async function handleRecommend(e) {
+      e.preventDefault();
+      const topic = document.getElementById('recommendTopic').value.trim();
+      const resultBox = document.getElementById('recommendResult');
+      if (!topic) return;
+
+      setLoading(resultBox, true, `Curating learning roadmap for "${topic}"...`);
+      try {
+        const res = await fetch(`/learn/recommendations?topic=${encodeURIComponent(topic)}`);
+        const data = await res.json();
+        resultBox.classList.remove('hidden');
+
+        if (data.recommendation) {
+          resultBox.innerHTML = `
+            <div class="result-header">Learning Recommendations for "${data.topic}":</div>
+            <div class="result-body">${marked.parse(data.recommendation)}</div>
+          `;
+        } else {
+          resultBox.innerHTML = `<div class="error-msg">Error: ${data.error || 'Failed to fetch recommendations.'}</div>`;
+        }
+      } catch (err) {
+        resultBox.classList.remove('hidden');
+        resultBox.innerHTML = `<div class="error-msg">Connection error: ${err.message}</div>`;
+      }
+    }
+  </script>
+</body>
+</html>
